@@ -11,7 +11,7 @@ fun test(del: Any?) {
   if (del !is Del) return
 
   class Local {
-    val delegatedVal by <!INAPPLICABLE_CANDIDATE!>df<!>(del)
-    val delegatedVal1: Int by <!INAPPLICABLE_CANDIDATE!>df<!>(del)
+    val delegatedVal by <!UNRESOLVED_REFERENCE!><!INAPPLICABLE_CANDIDATE!>df<!>(del)<!>
+    val delegatedVal1: Int by <!UNRESOLVED_REFERENCE!><!INAPPLICABLE_CANDIDATE!>df<!>(del)<!>
   }
 }

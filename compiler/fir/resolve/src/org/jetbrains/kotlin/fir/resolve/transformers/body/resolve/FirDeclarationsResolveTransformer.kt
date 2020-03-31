@@ -29,6 +29,7 @@ import org.jetbrains.kotlin.fir.types.*
 import org.jetbrains.kotlin.fir.types.builder.buildErrorTypeRef
 import org.jetbrains.kotlin.fir.types.builder.buildImplicitTypeRef
 import org.jetbrains.kotlin.fir.types.builder.buildResolvedTypeRef
+import org.jetbrains.kotlin.fir.types.impl.ConeClassLikeTypeImpl
 import org.jetbrains.kotlin.fir.visitors.*
 import org.jetbrains.kotlin.name.Name
 
@@ -137,6 +138,32 @@ class FirDeclarationsResolveTransformer(transformer: FirBodyResolveTransformer) 
         }
     }
 
+    private fun replacePropertyReferenceTypeInDelegateAccessors(property: FirProperty) {
+        // val someProperty: SomeType get() = delegate.getValue(thisRef, kProperty: KProperty0/1/2<..., SomeType>)
+        (property.getter?.body?.statements?.singleOrNull() as? FirReturnExpression)?.let { returnExpression ->
+            ((returnExpression.result as? FirFunctionCall)?.argumentMapping?.keys?.lastOrNull() as? FirCallableReferenceAccess)?.let {
+                val typeRef = it.typeRef
+                if (typeRef is FirResolvedTypeRef && property.returnTypeRef is FirResolvedTypeRef) {
+                    val typeArguments = (typeRef.type as ConeClassLikeType).typeArguments
+                    it.replaceTypeRef(
+                        buildResolvedTypeRef {
+                            source = typeRef.source
+                            annotations.addAll(typeRef.annotations)
+                            type = ConeClassLikeTypeImpl(
+                                (typeRef.type as ConeClassLikeType).lookupTag,
+                                typeArguments.mapIndexed { index, argument ->
+                                    if (index != typeArguments.size - 1) argument
+                                    else property.returnTypeRef.coneTypeUnsafe()
+                                }.toTypedArray(),
+                                isNullable = false
+                            )
+                        }
+                    )
+                }
+            }
+        }
+    }
+
     private fun transformPropertyWithDelegate(property: FirProperty) {
         property.transformDelegate(transformer, ResolutionMode.ContextDependent)
 
@@ -162,6 +189,9 @@ class FirDeclarationsResolveTransformer(transformer: FirBodyResolveTransformer) 
             }
             val declarationCompletionResultsWriter = FirDeclarationCompletionResultsWriter(finalSubstitutor)
             property.transformSingle(declarationCompletionResultsWriter, null)
+        }
+        if (property.delegateFieldSymbol != null) {
+            replacePropertyReferenceTypeInDelegateAccessors(property)
         }
         property.transformOtherChildren(transformer, ResolutionMode.ContextIndependent)
     }
