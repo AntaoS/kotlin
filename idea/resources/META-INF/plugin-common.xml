@@ -95,11 +95,11 @@
       <action id="DumbModeTremble" class="org.jetbrains.kotlin.idea.actions.internal.DumbModeTrembleAction"
               text="Tremble Dumb Mode"/>
 
-    <group id="KotlinRefactoringTesting" text="Kotlin refactoring testing" popup="true">
-      <action id="TestMoveRefactiringAction"
-              class="org.jetbrains.kotlin.idea.actions.internal.refactoringTesting.MoveRefactoringAction"
-              text="Test move refactoring on opened project"/>
-    </group>
+      <group id="KotlinRefactoringTesting" text="Kotlin refactoring testing" popup="true">
+        <action id="TestMoveRefactiringAction"
+                class="org.jetbrains.kotlin.idea.actions.internal.refactoringTesting.MoveRefactoringAction"
+                text="Test move refactoring on opened project"/>
+      </group>
 
       <group id="KotlinInternalGroup" text="Kotlin" popup="true">
         <group id="KotlinCompletionBenchmarkGroup" popup="true" text="Benchmark completion">
@@ -2037,6 +2037,15 @@
                      language="kotlin"
     />
 
+    <localInspection implementationClass="org.jetbrains.kotlin.idea.inspections.frozenObjectsMutation.FrozenSingletonsMutationInspection"
+                     displayName="Frozen object mutation"
+                     groupPath="Kotlin"
+                     groupName="Probable bugs"
+                     enabledByDefault="true"
+                     level="WARNING"
+                     language="kotlin"
+    />
+
     <localInspection implementationClass="org.jetbrains.kotlin.idea.inspections.ArrayInDataClassInspection"
                      displayName="Array property in data class"
                      groupPath="Kotlin"
@@ -2715,12 +2724,12 @@
                      level="WEAK WARNING"/>
 
     <globalInspection implementationClass="org.jetbrains.kotlin.idea.inspections.PackageNameInspection"
-                     language="kotlin"
-                     groupPath="Kotlin"
-                     groupName="Naming conventions"
-                     enabledByDefault="true"
-                     displayName="Package naming convention"
-                     level="WEAK WARNING"/>
+                      language="kotlin"
+                      groupPath="Kotlin"
+                      groupName="Naming conventions"
+                      enabledByDefault="true"
+                      displayName="Package naming convention"
+                      level="WEAK WARNING"/>
 
     <localInspection implementationClass="org.jetbrains.kotlin.idea.inspections.KotlinRedundantOverrideInspection"
                      displayName="Redundant overriding method"
@@ -3468,7 +3477,7 @@
                     serviceImplementation="org.jetbrains.kotlin.idea.codeInsight.KotlinCodeInsightWorkspaceSettings"/>
 
     <applicationService serviceInterface="org.jetbrains.kotlin.idea.codeInsight.KotlinCodeInsightSettings"
-                    serviceImplementation="org.jetbrains.kotlin.idea.codeInsight.KotlinCodeInsightSettings"/>
+                        serviceImplementation="org.jetbrains.kotlin.idea.codeInsight.KotlinCodeInsightSettings"/>
 
     <referenceImporter implementation="org.jetbrains.kotlin.idea.quickfix.KotlinReferenceImporter"/>
     <autoImportOptionsProvider instance="org.jetbrains.kotlin.idea.codeInsight.KotlinCodeInsightWorkspaceSettingsProvider"/>
