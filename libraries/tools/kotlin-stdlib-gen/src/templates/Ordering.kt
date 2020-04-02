@@ -457,4 +457,79 @@ object Ordering : TemplateGroupBase() {
         }
     }
 
+//    val f_shuffled = fn("shuffled()") {
+//        include(Iterables, ArraysOfObjects, ArraysOfPrimitives, ArraysOfUnsigned)
+//    } builder {
+//        returns("List<T>")
+//        body {
+//            "return toMutableList().shuffle()"
+//        }
+//    }
+//
+//    val f_shuffledRandom = fn("shuffled(random: Random)") {
+//        include(Iterables, ArraysOfObjects, ArraysOfPrimitives, ArraysOfUnsigned)
+//    }
+//
+//    val f_shuffledArray = fn("shuffledArray()") {
+//        include(Iterables, ArraysOfObjects, ArraysOfPrimitives, ArraysOfUnsigned)
+//    }
+//
+//    val f_shuffledArrayRandom = fn("shuffledArray(random: Random)") {
+//        include(Iterables, ArraysOfObjects, ArraysOfPrimitives, ArraysOfUnsigned)
+//    }
+
+    val f_shuffle = fn("shuffle()") {
+        include(InvariantArraysOfObjects, ArraysOfPrimitives, ArraysOfUnsigned)
+    } builder {
+        since("1.4")
+        returns("Unit")
+        doc {
+            """
+            Randomly shuffles elements in this ${f.collection} in-place using the specified [random] instance as the source of randomness.
+            
+            See: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_modern_algorithm
+            """
+        }
+        body {
+            "shuffle(Random)"
+        }
+    }
+
+    val f_shuffleRandom = fn("shuffle(random: Random)") {
+        include(Lists, InvariantArraysOfObjects, ArraysOfPrimitives, ArraysOfUnsigned)
+    } builder {
+        since("1.4")
+        returns("Unit")
+        doc {
+            """
+            Randomly shuffles elements in this ${f.collection} in-place using the specified [random] instance as the source of randomness.
+            
+            See: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_modern_algorithm
+            """
+        }
+        specialFor(Lists) {
+            receiver("MutableList<T>")
+        }
+        body {
+            """
+            for (i in lastIndex downTo 1) {
+                val j = random.nextInt(i + 1)
+                val copy = this[i]
+                this[i] = this[j]
+                this[j] = copy
+            }
+            """
+        }
+        specialFor(Lists) {
+            since("1.3")
+//            body {
+//                """
+//                for (i in lastIndex downTo 1) {
+//                    val j = random.nextInt(i + 1)
+//                    this[j] = this.set(i, this[j])
+//                }
+//                """
+//            }
+        }
+    }
 }

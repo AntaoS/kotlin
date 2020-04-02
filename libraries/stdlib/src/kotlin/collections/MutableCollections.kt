@@ -299,19 +299,3 @@ private fun <T> MutableList<T>.filterInPlace(predicate: (T) -> Boolean, predicat
         return false
     }
 }
-
-/**
- * Randomly shuffles elements in this mutable list using the specified [random] instance as the source of randomness.
- *
- * See: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_modern_algorithm
- */
-@SinceKotlin("1.3")
-public fun <T> MutableList<T>.shuffle(random: Random): Unit {
-    for (i in lastIndex downTo 1) {
-        val j = random.nextInt(i + 1)
-        val copy = this[i]
-        this[i] = this[j]
-        this[j] = copy
-    }
-}
-
