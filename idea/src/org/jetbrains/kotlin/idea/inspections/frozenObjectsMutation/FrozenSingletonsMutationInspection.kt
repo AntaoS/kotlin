@@ -27,7 +27,7 @@ class FrozenSingletonsMutationInspection : AbstractKotlinInspection() {
 private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
 
     companion object {
-        private const val THREADLOCAL_ANNOTATION = "@kotlin.native.ThreadLocal"
+        private const val THREADLOCAL_ANNOTATION = "ThreadLocal"
         private val BINARY_MUTATION_OPERATORS = TokenSet.create(
             KtTokens.EQ, KtTokens.PLUSEQ, KtTokens.MINUSEQ,
             KtTokens.MULTEQ, KtTokens.DIVEQ, KtTokens.PERCEQ
@@ -54,11 +54,13 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
         }
     }
 
-    private fun checkThreadlocalAnnotation(classOrObject: KtClassOrObject) : Boolean {
-        return classOrObject.annotations.find { it.name.equals(THREADLOCAL_ANNOTATION) } != null
+    private fun checkThreadlocalAnnotation(classOrObject: KtClassOrObject): Boolean {
+        return classOrObject.annotationEntries.find {
+            THREADLOCAL_ANNOTATION == it.shortName?.identifier
+        } != null
     }
 
-    private fun checkIfObject(classOrObject: KtClassOrObject) : Boolean {
+    private fun checkIfObject(classOrObject: KtClassOrObject): Boolean {
         if (classOrObject is KtObjectDeclaration) return true
         return false
     }
@@ -72,9 +74,9 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
         }
     }
 
-    private class ExpressionVisitor(var holder: ProblemsHolder) :KtVisitorVoid() {
+    private class ExpressionVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
 
-        private fun findReceiverParent(expression: KtExpression) : KtExpression {
+        private fun findReceiverParent(expression: KtExpression): KtExpression {
             expression.children.forEach {
                 val dot = it as? KtDotQualifiedExpression
                 val safe = it as? KtSafeQualifiedExpression
@@ -84,15 +86,15 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
             return expression
         }
 
-        private fun findReturn(expression: KtCallExpression?) : KtNameReferenceExpression? {
+        private fun findReturn(expression: KtCallExpression?): KtNameReferenceExpression? {
 
-            fun resolveLambda(lambdaExpression: KtLambdaExpression) : KtNameReferenceExpression? {
+            fun resolveLambda(lambdaExpression: KtLambdaExpression): KtNameReferenceExpression? {
                 val block = lambdaExpression.findDescendantOfType<KtBlockExpression>()
-                var lastRef : KtReferenceExpression? = null
+                var lastRef: KtReferenceExpression? = null
                 block?.children?.forEach {
                     lastRef = it as? KtReferenceExpression
                 }
-                when(lastRef) {
+                when (lastRef) {
                     is KtCallExpression -> return findReturn(lastRef as KtCallExpression)
                     is KtNameReferenceExpression -> return lastRef as KtNameReferenceExpression
                     else -> return null
@@ -113,13 +115,13 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
             val call = returnRef?.findDescendantOfType<KtCallExpression>()
             if (ref != null) {
                 return ref
-            } else if (call != null){
+            } else if (call != null) {
                 findReturn(call)
             }
             return null
         }
 
-        private fun isReceiverLocal(expression: KtExpression) : Boolean? {
+        private fun isReceiverLocal(expression: KtExpression): Boolean? {
             val receiverParent = findReceiverParent(expression)
             val callExpression = receiverParent.findDescendantOfType<KtCallExpression>()
             if (callExpression != null) {
@@ -132,14 +134,14 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
             }
         }
 
-        private fun extractElementReference(references: Array<out PsiReference>?) : PsiReference? {
+        private fun extractElementReference(references: Array<out PsiReference>?): PsiReference? {
             return references?.find {
                 it is KtSimpleNameReference
             }
         }
 
-        private fun checkReferenceLocal(expression: KtExpression?) : Boolean? {
-            return when(val result = (extractElementReference(expression?.references)
+        private fun checkReferenceLocal(expression: KtExpression?): Boolean? {
+            return when (val result = (extractElementReference(expression?.references)
                 ?.resolve())) {
                 is KtProperty -> result.isLocal
                 is KtObjectDeclaration -> false
@@ -147,7 +149,7 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
             }
         }
 
-        private fun ifInitializerChild(expression: KtExpression) : Boolean {
+        private fun ifInitializerChild(expression: KtExpression): Boolean {
             var parent = expression.parent
             while (!parent.isTopLevelKtOrJavaMember()) {
                 if (parent is KtClassInitializer) return true
@@ -156,7 +158,7 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
             return false
         }
 
-        private fun isTopParentDotExpression(expression: KtExpression) : Boolean {
+        private fun isTopParentDotExpression(expression: KtExpression): Boolean {
             return expression.parent !is KtOperationExpression && expression.parent !is KtQualifiedExpression
         }
 
@@ -164,9 +166,11 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
             if (isTopParentDotExpression(expression)) {
                 /*val localreceiver = isReceiverLocal(expression) ?: return
                 if (localreceiver) return*/
-                extractElementReference(expression.findDescendantOfType<KtCallExpression>()
-                    ?.findDescendantOfType<KtNameReferenceExpression>()
-                    ?.references)
+                extractElementReference(
+                    expression.findDescendantOfType<KtCallExpression>()
+                        ?.findDescendantOfType<KtNameReferenceExpression>()
+                        ?.references
+                )
                     ?.resolve()
                     ?.findDescendantOfType<KtBlockExpression>()?.apply {
                         this.accept(this@ExpressionVisitor)
@@ -197,7 +201,8 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
                     "Frozen object mutation",
                     true,
                     ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                    true)
+                    true
+                )
                 holder.registerProblem(problemDescriptor)
 
             } else {
@@ -208,7 +213,8 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
                     "Frozen object mutation",
                     true,
                     ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                    true)
+                    true
+                )
                 holder.registerProblem(problemDescriptor)
 
             }
@@ -224,7 +230,8 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
                 "Frozen object mutation",
                 true,
                 ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                true)
+                true
+            )
             holder.registerProblem(problemDescriptor)
         }
 
