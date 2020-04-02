@@ -138,30 +138,45 @@ class FirDeclarationsResolveTransformer(transformer: FirBodyResolveTransformer) 
         }
     }
 
-    private fun replacePropertyReferenceTypeInDelegateAccessors(property: FirProperty) {
-        // val someProperty: SomeType get() = delegate.getValue(thisRef, kProperty: KProperty0/1/2<..., SomeType>)
-        (property.getter?.body?.statements?.singleOrNull() as? FirReturnExpression)?.let { returnExpression ->
-            ((returnExpression.result as? FirFunctionCall)?.argumentMapping?.keys?.lastOrNull() as? FirCallableReferenceAccess)?.let {
-                val typeRef = it.typeRef
-                if (typeRef is FirResolvedTypeRef && property.returnTypeRef is FirResolvedTypeRef) {
-                    val typeArguments = (typeRef.type as ConeClassLikeType).typeArguments
-                    it.replaceTypeRef(
-                        buildResolvedTypeRef {
-                            source = typeRef.source
-                            annotations.addAll(typeRef.annotations)
-                            type = ConeClassLikeTypeImpl(
-                                (typeRef.type as ConeClassLikeType).lookupTag,
-                                typeArguments.mapIndexed { index, argument ->
-                                    if (index != typeArguments.size - 1) argument
-                                    else property.returnTypeRef.coneTypeUnsafe()
-                                }.toTypedArray(),
-                                isNullable = false
-                            )
-                        }
-                    )
-                }
+    private fun FirFunctionCall.replacePropertyReferenceTypeInDelegateAccessors(property: FirProperty) {
+        // var someProperty: SomeType
+        //     get() = delegate.getValue(thisRef, kProperty: KProperty0/1/2<..., SomeType>)
+        //     set() = delegate.getValue(thisRef, kProperty: KProperty0/1/2<..., SomeType>, value)
+        (argumentMapping?.keys?.toList()?.getOrNull(1) as? FirCallableReferenceAccess)?.let {
+            val typeRef = it.typeRef
+            if (typeRef is FirResolvedTypeRef && property.returnTypeRef is FirResolvedTypeRef) {
+                val typeArguments = (typeRef.type as ConeClassLikeType).typeArguments
+                val extensionType = (property.receiverTypeRef as? FirResolvedTypeRef)?.coneTypeSafe<ConeKotlinType>()
+                it.replaceTypeRef(
+                    buildResolvedTypeRef {
+                        source = typeRef.source
+                        annotations.addAll(typeRef.annotations)
+                        type = ConeClassLikeTypeImpl(
+                            (typeRef.type as ConeClassLikeType).lookupTag,
+                            typeArguments.mapIndexed { index, argument ->
+                                when (index) {
+                                    typeArguments.size - 1 -> property.returnTypeRef.coneTypeUnsafe()
+                                    0 -> containingClass?.let { containingClass ->
+                                        containingClass.symbol.constructType(
+                                            Array(containingClass.typeParameters.size) { ConeStarProjection }, isNullable = false
+                                        )
+                                    } ?: extensionType
+                                    else -> extensionType
+                                } ?: argument
+                            }.toTypedArray(),
+                            isNullable = false
+                        )
+                    }
+                )
             }
         }
+    }
+
+    private fun replacePropertyReferenceTypeInDelegateAccessors(property: FirProperty) {
+        (property.getter?.body?.statements?.singleOrNull() as? FirReturnExpression)?.let { returnExpression ->
+            (returnExpression.result as? FirFunctionCall)?.replacePropertyReferenceTypeInDelegateAccessors(property)
+        }
+        (property.setter?.body?.statements?.singleOrNull() as? FirFunctionCall)?.replacePropertyReferenceTypeInDelegateAccessors(property)
     }
 
     private fun transformPropertyWithDelegate(property: FirProperty) {
