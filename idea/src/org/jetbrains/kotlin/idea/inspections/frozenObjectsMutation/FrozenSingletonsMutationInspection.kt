@@ -201,12 +201,13 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
 
         override fun visitBinaryExpression(expression: KtBinaryExpression) {
             if (expression.operationToken !in BINARY_MUTATION_OPERATORS) return
-            if (expression.left == null) return
+            val left = expression.left ?: return
             val localreceiver = isReceiverLocal(expression.left!!) ?: return
             if (localreceiver) return
-            if (ifInitializerChild(expression)) return
+            if (ifInitializerChild(left)) return
             val problem = recursivevisitorRoot ?: expression
-            if (expression.left is KtNameReferenceExpression) {
+            if (left is KtNameReferenceExpression) {
+                if (recursivevisitorRoot == null && !left.isEquivalentTo(usage)) return
                 val problemDescriptor = holder.manager.createProblemDescriptor(
                     problem,
                     "Frozen object mutation",
@@ -216,10 +217,16 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
                 )
                 holder.registerProblem(problemDescriptor)
             } else {
-                //if (ref == null || !(ref as KtReferenceExpression).isEquivalentTo(usage)) return
-                if (expression.left == null) return
-                /*val localreceiver = isReceiverLocal(expression.left!!) ?: return
-                if (localreceiver) return*/
+                if (recursivevisitorRoot == null) {
+                    val ref: MutableList<KtNameReferenceExpression> = mutableListOf()
+                    left.children.forEach {
+                        (it as? KtNameReferenceExpression)?.apply {
+                            ref.add(it)
+                        }
+                    }
+
+                    ref.find { it.isEquivalentTo(usage) } ?: return
+                }
                 val problemDescriptor = holder.manager.createProblemDescriptor(
                     problem,
                     "Frozen object mutation",
