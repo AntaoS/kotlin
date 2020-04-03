@@ -69,12 +69,16 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
         val usages = ReferencesSearch.search(property).findAll()
         usages.forEach {
             (it.element.parent as? KtExpression)?.apply {
+                expressionVisitor.usage = it.element as KtReferenceExpression
                 this.accept(expressionVisitor)
             }
         }
     }
 
     private class ExpressionVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
+
+        private var recursivevisitorRoot: KtExpression? = null
+        var usage: KtReferenceExpression? = null
 
         private fun findReceiverParent(expression: KtExpression): KtExpression {
             expression.children.forEach {
@@ -121,16 +125,18 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
             return null
         }
 
+        //Need to be patched to analyze initialization
         private fun isReceiverLocal(expression: KtExpression): Boolean? {
             val receiverParent = findReceiverParent(expression)
-            val callExpression = receiverParent.findDescendantOfType<KtCallExpression>()
-            if (callExpression != null) {
-                return checkReferenceLocal(findReturn(callExpression))
+            val callExpression = receiverParent.firstChild as? KtCallExpression
+            return if (callExpression != null) {
+                //need to check if it constructor
+                checkReferenceLocal(findReturn(callExpression))
             } else {
-                val references = receiverParent.findDescendantOfType<KtReferenceExpression>()?.references
+                /*val references = receiverParent.findDescendantOfType<KtNameReferenceExpression>()?.references
                 val ref = extractElementReference(references)
-                val resolution = ref?.resolve()
-                return checkReferenceLocal(receiverParent.findDescendantOfType<KtReferenceExpression>())
+                val resolution = ref?.resolve()*/
+                checkReferenceLocal(receiverParent.findDescendantOfType<KtNameReferenceExpression>())
             }
         }
 
@@ -164,17 +170,23 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
 
         private fun visitDotOrSafeQualifiedExpression(expression: KtExpression) {
             if (isTopParentDotExpression(expression)) {
-                /*val localreceiver = isReceiverLocal(expression) ?: return
-                if (localreceiver) return*/
-                extractElementReference(
-                    expression.findDescendantOfType<KtCallExpression>()
-                        ?.findDescendantOfType<KtNameReferenceExpression>()
-                        ?.references
-                )
-                    ?.resolve()
-                    ?.findDescendantOfType<KtBlockExpression>()?.apply {
-                        this.accept(this@ExpressionVisitor)
+                val localreceiver = isReceiverLocal(expression) ?: return
+                if (localreceiver) return
+                var call: KtCallExpression? = null
+                expression.children.forEach {
+                    call = it as? KtCallExpression
+                }
+                val ref = call?.findDescendantOfType<KtNameReferenceExpression>()
+                val reference = extractElementReference(ref?.references)
+                val resolution = reference?.resolve()
+                val block = resolution?.findDescendantOfType<KtBlockExpression>()
+                block?.apply {
+                    if (recursivevisitorRoot == null) {
+                        recursivevisitorRoot = call
                     }
+                    this.accept(this@ExpressionVisitor)
+                    recursivevisitorRoot = null
+                }
             } else {
                 expression.parent.accept(this)
             }
@@ -189,27 +201,27 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
 
         override fun visitBinaryExpression(expression: KtBinaryExpression) {
             if (expression.operationToken !in BINARY_MUTATION_OPERATORS) return
-            /*val localreceiver = isReceiverLocal(expression) ?: return
-            if (localreceiver) return*/
+            if (expression.left == null) return
+            val localreceiver = isReceiverLocal(expression.left!!) ?: return
+            if (localreceiver) return
             if (ifInitializerChild(expression)) return
-            if (expression.left is KtReferenceExpression) {
-                //determine whether property is mutated
-                /*val localProp = checkReferenceLocal(expression.left) ?: return
-                if (localProp) return*/
+            val problem = recursivevisitorRoot ?: expression
+            if (expression.left is KtNameReferenceExpression) {
                 val problemDescriptor = holder.manager.createProblemDescriptor(
-                    expression,
+                    problem,
                     "Frozen object mutation",
                     true,
                     ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
                     true
                 )
                 holder.registerProblem(problemDescriptor)
-
             } else {
-                /*val localProp = checkReferenceLocal(expression.findDescendantOfType<KtNameReferenceExpression>()) ?: return
-                if (localProp) return*/
+                //if (ref == null || !(ref as KtReferenceExpression).isEquivalentTo(usage)) return
+                if (expression.left == null) return
+                /*val localreceiver = isReceiverLocal(expression.left!!) ?: return
+                if (localreceiver) return*/
                 val problemDescriptor = holder.manager.createProblemDescriptor(
-                    expression,
+                    problem,
                     "Frozen object mutation",
                     true,
                     ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
@@ -222,11 +234,12 @@ private class SingletoneVisitor(var holder: ProblemsHolder) : KtVisitorVoid() {
 
         override fun visitPostfixExpression(expression: KtPostfixExpression) {
             if (expression.operationToken !in POSTFIX_MUTATION_OPERATORS) return
-            /*val localreceiver = isReceiverLocal(expression) ?: return
-            if (localreceiver) return*/
+            val localreceiver = isReceiverLocal(expression) ?: return
+            if (localreceiver) return
             if (ifInitializerChild(expression)) return
+            val problem = recursivevisitorRoot ?: expression
             val problemDescriptor = holder.manager.createProblemDescriptor(
-                expression,
+                problem,
                 "Frozen object mutation",
                 true,
                 ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
